@@ -75,9 +75,9 @@ class GymWrapper(dm_env.Environment):
     """Returns the wrapped environment."""
     return self._environment
 
-  def __getattr__(self, name):
-    # Expose any other attributes of the underlying environment.
-    return getattr(self._environment, name)
+  # def __getattr__(self, name):  # prevents deepcopy
+  #   # Expose any other attributes of the underlying environment.
+  #   return getattr(self._environment, name)
 
   def close(self):
     self._environment.close()
