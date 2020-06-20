@@ -18,6 +18,7 @@
 import itertools
 import time
 from typing import Optional
+import numpy as np
 
 from acme import core
 # Internal imports.
@@ -88,6 +89,11 @@ class EnvironmentLoop(core.Worker):
       # Make the first observation.
       self._actor.observe_first(timestep)
 
+      episode_min_return = np.inf
+      episode_max_return = -np.inf
+      episode_min_length = np.inf
+      episode_max_length = -np.inf
+
       # Run an episode.
       while not timestep.last():
         # Generate an action from the agent's policy and step the environment.
@@ -105,11 +111,24 @@ class EnvironmentLoop(core.Worker):
       # Record counts.
       counts = self._counter.increment(episodes=1, steps=episode_steps)
 
+      if episode_return > episode_max_return:
+        episode_max_return = episode_return
+      if episode_return < episode_min_return:
+        episode_min_return = episode_return
+      if episode_steps > episode_max_length:
+        episode_max_length = episode_steps
+      if episode_steps < episode_min_length:
+        episode_min_length = episode_steps
+
       # Collect the results and combine with counts.
       steps_per_second = episode_steps / (time.time() - start_time)
       result = {
           'episode_length': episode_steps,
           'episode_return': episode_return,
+          'episode_return_max': episode_max_return,
+          # 'episode_return_min': episode_min_return,
+          'episode_length_max': episode_max_length,
+          # 'episode_length_min': episode_min_length,
           'steps_per_second': steps_per_second,
       }
       result.update(counts)
