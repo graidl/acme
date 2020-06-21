@@ -79,6 +79,11 @@ class EnvironmentLoop(core.Worker):
 
     iterator = range(num_episodes) if num_episodes else itertools.count()
 
+    episode_min_return = np.inf
+    episode_max_return = -np.inf
+    episode_min_length = np.inf
+    episode_max_length = -np.inf
+
     for _ in iterator:
       # Reset any counts and start the environment.
       start_time = time.time()
@@ -88,11 +93,6 @@ class EnvironmentLoop(core.Worker):
 
       # Make the first observation.
       self._actor.observe_first(timestep)
-
-      episode_min_return = np.inf
-      episode_max_return = -np.inf
-      episode_min_length = np.inf
-      episode_max_length = -np.inf
 
       # Run an episode.
       while not timestep.last():
