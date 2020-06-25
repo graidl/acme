@@ -59,6 +59,7 @@ class DQN(agent.Agent):
       discount: float = 0.99,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
+      checkpoint_subpath: str = '~/acme/',
   ):
     """Initialize the agent.
 
@@ -85,6 +86,7 @@ class DQN(agent.Agent):
       discount: discount to use for TD updates.
       logger: logger object to be used by learner.
       checkpoint: boolean indicating whether to checkpoint the learner.
+      checkpoint_subpath: directory for the checkpoint.
     """
 
     # Create a replay server to add data to. This uses no limiter behavior in
@@ -94,7 +96,8 @@ class DQN(agent.Agent):
         sampler=reverb.selectors.Prioritized(priority_exponent),
         remover=reverb.selectors.Fifo(),
         max_size=max_replay_size,
-        rate_limiter=reverb.rate_limiters.MinSize(1))
+        rate_limiter=reverb.rate_limiters.MinSize(1),
+        signature=adders.NStepTransitionAdder.signature(environment_spec))
     self._server = reverb.Server([replay_table], port=None)
 
     # The adder is used to insert observations into replay.
@@ -146,6 +149,7 @@ class DQN(agent.Agent):
 
     if checkpoint:
       self._checkpointer = tf2_savers.Checkpointer(
+          directory=checkpoint_subpath,
           objects_to_save=learner.state,
           subdirectory='dqn_learner',
           time_delta_minutes=60.)
