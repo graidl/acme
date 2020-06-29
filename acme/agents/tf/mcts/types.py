@@ -24,7 +24,7 @@ import numpy as np
 Action = Union[int, np.int32, np.int64]
 
 # Assumption: observations are array-like.
-Observation = np.ndarray
+Observation = Union[np.ndarray, dict]
 
 # Assumption: rewards and discounts are scalar.
 Reward = Union[float, np.float32, np.float64]

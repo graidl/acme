@@ -31,6 +31,7 @@ class Simulator(base.Model):
 
   def __init__(self, env: dm_env.Environment):
     # Make a 'checkpoint' copy env to save/load from when doing rollouts.
+    self._env_original = env
     self._env = copy.deepcopy(env)
     self._checkpoint = copy.deepcopy(env)
     self._needs_reset = True

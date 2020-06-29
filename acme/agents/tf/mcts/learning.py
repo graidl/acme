@@ -18,73 +18,108 @@
 from typing import List
 
 import acme
-from acme.tf import utils as tf2_utils
-from acme.utils import counting
-from acme.utils import loggers
 import numpy as np
 import sonnet as snt
 import tensorflow as tf
+from acme.tf import utils as tf2_utils
+from acme.utils import counting
+from acme.utils import loggers
+from acme.tf import savers as tf2_savers
 
 
 class AZLearner(acme.Learner):
-  """AlphaZero-style learning."""
+    """AlphaZero-style learning."""
 
-  def __init__(
-      self,
-      network: snt.Module,
-      optimizer: snt.Optimizer,
-      dataset: tf.data.Dataset,
-      discount: float,
-      logger: loggers.Logger = None,
-      counter: counting.Counter = None,
-  ):
+    def __init__(
+            self,
+            network: snt.Module,
+            optimizer: snt.Optimizer,
+            dataset: tf.data.Dataset,
+            discount: float,
+            logger: loggers.Logger = None,
+            counter: counting.Counter = None,
+            checkpoint: bool = True,
+            snapshot: bool = True,
+            directory: str = '~/acme/'
+    ):
+        # Logger and counter for tracking statistics / writing out to terminal.
+        self._counter = counting.Counter(counter, 'learner')
+        self._logger = logger or loggers.TerminalLogger('learner', time_delta=30.)
 
-    # Logger and counter for tracking statistics / writing out to terminal.
-    self._counter = counting.Counter(counter, 'learner')
-    self._logger = logger or loggers.TerminalLogger('learner', time_delta=30.)
+        # Internalize components.
+        # TODO(b/155086959): Fix type stubs and remove.
+        self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
+        self._optimizer = optimizer
+        self._network = network
+        self._variables = network.trainable_variables
+        self._discount = np.float32(discount)
+        # Create a checkpointer and snapshotter objects.
+        self._checkpointer = None
+        self._snapshotter = None
 
-    # Internalize components.
-    # TODO(b/155086959): Fix type stubs and remove.
-    self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
-    self._optimizer = optimizer
-    self._network = network
-    self._variables = network.trainable_variables
-    self._discount = np.float32(discount)
+        if checkpoint:
+            self._checkpointer = tf2_savers.Checkpointer(
+                objects_to_save={
+                    'counter': self._counter,
+                    'network': self._network,
+                    'optimizer': self._optimizer,
+                },
+                directory=directory,
+                add_uid=False,
+                time_delta_minutes=5.0
+            )
+            self._snapshotter = tf2_savers.Snapshotter(
+                objects_to_save={
+                    'network': self._network,
+                },
+                directory=directory,
+                time_delta_minutes=15.0
+            )
 
-  @tf.function
-  def _step(self) -> tf.Tensor:
-    """Do a step of SGD on the loss."""
+    @tf.function
+    def _step(self) -> tf.Tensor:
+        """Do a step of SGD on the loss."""
 
-    inputs = next(self._iterator)
-    o_t, _, r_t, d_t, o_tp1, extras = inputs.data
-    pi_t = extras['pi']
+        inputs = next(self._iterator)
+        o_t, _, r_t, d_t, o_tp1, extras = inputs.data
 
-    with tf.GradientTape() as tape:
-      # Forward the network on the two states in the transition.
-      logits, value = self._network(o_t)
-      _, target_value = self._network(o_tp1)
-      target_value = tf.stop_gradient(target_value)
+        if isinstance(o_t, dict):
+            o_t = o_t['obs']
+            o_tp1 = o_tp1['obs']
 
-      # Value loss is simply on-policy TD learning.
-      value_loss = tf.square(r_t + self._discount * d_t * target_value - value)
+        pi_t = extras['pi']
 
-      # Policy loss distills MCTS policy into the policy network.
-      policy_loss = tf.nn.softmax_cross_entropy_with_logits(
-          logits=logits, labels=pi_t)
+        with tf.GradientTape() as tape:
+            # Forward the network on the two states in the transition.
+            logits, value = self._network(o_t)
+            _, target_value = self._network(o_tp1)
+            target_value = tf.stop_gradient(target_value)
+            # target_value = extras['Vhat']  # Moerland et al. target value
 
-      # Compute gradients.
-      loss = tf.reduce_mean(value_loss + policy_loss)
-      gradients = tape.gradient(loss, self._network.trainable_variables)
+            # Value loss is simply on-policy TD learning.
+            value_loss = tf.square(r_t + self._discount * d_t * target_value - value)
 
-    self._optimizer.apply(gradients, self._network.trainable_variables)
+            # Policy loss distills MCTS policy into the policy network.
+            policy_loss = tf.nn.softmax_cross_entropy_with_logits(
+                logits=logits, labels=pi_t)
 
-    return loss
+            # Compute gradients.
+            loss = tf.reduce_mean(value_loss + policy_loss)
+            gradients = tape.gradient(loss, self._network.trainable_variables)
 
-  def step(self):
-    """Does a step of SGD and logs the results."""
-    loss = self._step()
-    self._logger.write({'loss': loss})
+        self._optimizer.apply(gradients, self._network.trainable_variables)
 
-  def get_variables(self, names: List[str]) -> List[List[np.ndarray]]:
-    """Exposes the variables for actors to update from."""
-    return tf2_utils.to_numpy(self._variables)
+        return loss
+
+    def step(self):
+        """Does a step of SGD and logs the results."""
+        loss = self._step()
+        if self._checkpointer is not None:
+            self._checkpointer.save()
+        if self._snapshotter is not None:
+            self._snapshotter.save()
+        self._logger.write({'loss': loss})
+
+    def get_variables(self, names: List[str]) -> List[List[np.ndarray]]:
+        """Exposes the variables for actors to update from."""
+        return tf2_utils.to_numpy(self._variables)
