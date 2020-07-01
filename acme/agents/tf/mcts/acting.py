@@ -92,8 +92,8 @@ class MCTSActor(acme.Actor):
     def select_action(self, observation: types.Observation) -> types.Action:
         """Computes the agent's policy via MCTS."""
         obs = observation['obs'] if isinstance(observation, dict) else observation
-        if obs[:3].sum() == 150:      # TODO Hack for resetting environment properly
-            self._model._env = deepcopy(self._model._env_original)
+        if self._model.needs_reset:
+            self._model.reset_to_original_env()
 
         if self._model.needs_reset:
             self._model.reset(observation)

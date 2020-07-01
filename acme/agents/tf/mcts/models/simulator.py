@@ -88,3 +88,9 @@ class Simulator(base.Model):
   @property
   def needs_reset(self) -> bool:
     return self._needs_reset
+
+  def reset_to_original_env(self):
+    self._env = copy.deepcopy(self._env_original)
+    self._needs_reset = False
+
+
