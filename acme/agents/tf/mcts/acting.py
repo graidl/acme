@@ -62,9 +62,9 @@ class MCTSActor(acme.Actor):
         self._num_simulations = num_simulations
         self._discount = discount
         if search_policy == 'puct':
-            self._search_policy = (lambda node: search.Node.puct(node, ucb_scaling))
+            self._search_policy = (lambda node: search.puct(node, ucb_scaling))
         elif search_policy == 'bfs':
-            self._search_policy = search.Node.bfs
+            self._search_policy = search.bfs
         else:
             ValueError(f'Invalid search_policy in MCTS: {search_policy}')
         # We need to save the policy so as to add it to replay on the next step.

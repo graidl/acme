@@ -45,7 +45,9 @@ class MCTS(agent.Agent):
             batch_size: int,
             search_policy: str = 'puct',  # puct or bfs
             ucb_scaling: float = 1.0,
-            directory: str = '~/acme/'
+            directory: str = '~/acme/',
+            min_observations_for_learner: int = 10,
+            observations_per_step: float = 1,
     ):
         # Create a replay server for storing transitions.
         replay_table = reverb.Table(
@@ -53,7 +55,8 @@ class MCTS(agent.Agent):
             sampler=reverb.selectors.Uniform(),
             remover=reverb.selectors.Fifo(),
             max_size=replay_capacity,
-            rate_limiter=reverb.rate_limiters.MinSize(1))
+            rate_limiter=reverb.rate_limiters.MinSize(1)
+        )
         self._server = reverb.Server([replay_table], port=None)
 
         # The adder is used to insert observations into replay.
@@ -106,6 +109,6 @@ class MCTS(agent.Agent):
         super().__init__(
             actor=actor,
             learner=learner,
-            min_observations=10,
-            observations_per_step=1,
+            min_observations=min_observations_for_learner,
+            observations_per_step=observations_per_step,
         )
