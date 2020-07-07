@@ -30,7 +30,7 @@ from acme.tf import variable_utils as tf2_variable_utils
 from scipy import special
 
 from acme.agents.tf.mcts import search
-from acme.agents.tf.mcts import types
+from acme.agents.tf.mcts import acra_types
 
 
 class MCTSActor(acme.Actor):
@@ -72,7 +72,7 @@ class MCTSActor(acme.Actor):
         # We save the target value calculated according to Moerland et al. here
         self._Vhat = np.zeros(shape=(1,), dtype=np.float32)
 
-    def _forward(self, observation: types.Observation) -> Tuple[types.Probs, types.Value]:
+    def _forward(self, observation: acra_types.Observation) -> Tuple[acra_types.Probs, acra_types.Value]:
         """Performs a forward pass of the policy-value network."""
         if isinstance(observation, dict):
             action_mask = observation['action_mask']
@@ -89,7 +89,7 @@ class MCTSActor(acme.Actor):
         probs = special.softmax(logits)
         return probs, value
 
-    def select_action(self, observation: types.Observation) -> types.Action:
+    def select_action(self, observation: acra_types.Observation) -> acra_types.Action:
         """Computes the agent's policy via MCTS."""
         if self._model.needs_reset:
             self._model.reset(observation)
@@ -129,11 +129,11 @@ class MCTSActor(acme.Actor):
         if self._adder:
             self._adder.add_first(timestep)
 
-    def observe(self, action: types.Action, next_timestep: dm_env.TimeStep):
+    def observe(self, action: acra_types.Action, next_timestep: dm_env.TimeStep):
         """Updates the agent's internal model and adds the transition to replay."""
         self._model.update(self._prev_timestep, action, next_timestep)
 
         self._prev_timestep = next_timestep
 
         if self._adder:
-            self._adder.add(action, next_timestep, extras={'pi': self._probs, 'Vhat': self._Vhat})
+            self._adder.add(action, next_timestep, extras={'pi': self._probs})

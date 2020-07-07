@@ -22,11 +22,11 @@ from acme import datasets
 from acme import specs
 from acme.adders import reverb as adders
 from acme.agents import agent
+from acme.agents.tf.mcts import acting
+from acme.agents.tf.mcts import learning
 from acme.agents.tf.mcts import models
 from acme.tf import utils as tf2_utils
 
-from acme.agents.tf.mcts import acting
-from acme.agents.tf.mcts import learning
 
 
 class MCTS(agent.Agent):
@@ -48,6 +48,8 @@ class MCTS(agent.Agent):
             directory: str = '~/acme/',
             min_observations_for_learner: int = 10,
             observations_per_step: float = 1,
+            checkpoint: bool = False,
+            snapshot: bool = False,
     ):
         # Create a replay server for storing transitions.
         replay_table = reverb.Table(
@@ -73,8 +75,7 @@ class MCTS(agent.Agent):
             client=replay_client,
             environment_spec=environment_spec,
             extra_spec={
-                'pi': specs.Array(shape=(action_spec.num_values,), dtype=np.float32),
-                'Vhat': specs.Array(shape=(1,), dtype=np.float32),
+                'pi': specs.Array(shape=(action_spec.num_values,), dtype=np.float32)
             },
             transition_adder=True)
 
@@ -102,7 +103,9 @@ class MCTS(agent.Agent):
             optimizer=optimizer,
             dataset=dataset,
             discount=discount,
-            directory=directory
+            directory=directory,
+            checkpoint=checkpoint,
+            snapshot=snapshot,
         )
 
         # The parent class combines these together into one 'agent'.

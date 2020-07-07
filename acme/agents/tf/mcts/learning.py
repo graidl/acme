@@ -38,8 +38,8 @@ class AZLearner(acme.Learner):
             discount: float,
             logger: loggers.Logger = None,
             counter: counting.Counter = None,
-            checkpoint: bool = True,
-            snapshot: bool = True,
+            checkpoint: bool = False,
+            snapshot: bool = False,
             directory: str = '~/acme/'
     ):
         # Logger and counter for tracking statistics / writing out to terminal.
@@ -94,7 +94,6 @@ class AZLearner(acme.Learner):
             logits, value = self._network(o_t)
             _, target_value = self._network(o_tp1)
             target_value = tf.stop_gradient(target_value)
-            # target_value = extras['Vhat']  # Moerland et al. target value
 
             # Value loss is simply on-policy TD learning.
             value_loss = tf.square(r_t + self._discount * d_t * target_value - value)

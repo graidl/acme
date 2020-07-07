@@ -17,7 +17,7 @@
 
 import abc
 
-from acme.agents.tf.mcts import types
+from acme.agents.tf.mcts import acra_types
 
 import dm_env
 
@@ -37,13 +37,13 @@ class Model(dm_env.Environment, abc.ABC):
   def update(
       self,
       timestep: dm_env.TimeStep,
-      action: types.Action,
+      action: acra_types.Action,
       next_timestep: dm_env.TimeStep,
   ) -> dm_env.TimeStep:
     """Updates the model given an observation, action, reward, and discount."""
 
   @abc.abstractmethod
-  def reset(self, initial_state: types.Observation = None):
+  def reset(self, initial_state: acra_types.Observation = None):
     """Resets the model, optionally to an initial state."""
 
   @property

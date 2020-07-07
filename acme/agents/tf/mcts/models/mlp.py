@@ -18,7 +18,7 @@
 from typing import Tuple
 
 from acme import specs
-from acme.agents.tf.mcts import types
+from acme.agents.tf.mcts import acra_types
 from acme.agents.tf.mcts.models import base
 from acme.tf import utils as tf2_utils
 
@@ -78,8 +78,8 @@ class MLPTransitionModel(snt.Module):
 class MLPModel(base.Model):
   """A simple environment model."""
 
-  _checkpoint: types.Observation
-  _state: types.Observation
+  _checkpoint: acra_types.Observation
+  _state: acra_types.Observation
 
   def __init__(
       self,
@@ -136,7 +136,7 @@ class MLPModel(base.Model):
 
     return loss
 
-  def step(self, action: types.Action):
+  def step(self, action: acra_types.Action):
     # Reset if required.
     if self._needs_reset:
       raise ValueError('Model must be reset with an initial timestep.')
@@ -157,7 +157,7 @@ class MLPModel(base.Model):
       return dm_env.termination(reward=reward, observation=self._state.copy())
     return dm_env.transition(reward=reward, observation=self._state.copy())
 
-  def reset(self, initial_state: types.Observation = None):
+  def reset(self, initial_state: acra_types.Observation = None):
     if initial_state is None:
       raise ValueError('Model must be reset with an initial state.')
     # We reset to an initial state that we are explicitly given.
@@ -169,7 +169,7 @@ class MLPModel(base.Model):
   def update(
       self,
       timestep: dm_env.TimeStep,
-      action: types.Action,
+      action: acra_types.Action,
       next_timestep: dm_env.TimeStep,
   ) -> dm_env.TimeStep:
     # Add the true transition to replay.

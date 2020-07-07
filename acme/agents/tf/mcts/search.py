@@ -18,7 +18,7 @@
 from typing import Callable, Dict
 
 from acme.agents.tf.mcts import models
-from acme.agents.tf.mcts import types
+from acme.agents.tf.mcts import acra_types
 
 import dataclasses
 import numpy as np
@@ -33,7 +33,7 @@ class Node:
   terminal: bool = False
   prior: float = 1.
   total_value: float = 0.
-  children: Dict[types.Action, 'Node'] = dataclasses.field(default_factory=dict)
+  children: Dict[acra_types.Action, 'Node'] = dataclasses.field(default_factory=dict)
 
   def expand(self, prior: np.ndarray, action_mask: np.ndarray):
     """Expands this node, adding valid child nodes."""
@@ -43,7 +43,7 @@ class Node:
         self.children[a] = Node(prior=p)
 
   @property
-  def value(self) -> types.Value:  # Q(s, a)
+  def value(self) -> acra_types.Value:  # Q(s, a)
     """Returns the value from this node."""
     if self.visit_count:
       return self.total_value / self.visit_count
@@ -64,14 +64,14 @@ class Node:
     return list(self.children.keys())
 
 
-SearchPolicy = Callable[[Node], types.Action]
+SearchPolicy = Callable[[Node], acra_types.Action]
 
 
 def mcts(
-    observation: types.Observation,
+    observation: acra_types.Observation,
     model: models.Model,
     search_policy: SearchPolicy,
-    evaluation: types.EvaluationFn,
+    evaluation: acra_types.EvaluationFn,
     num_simulations: int,
     num_actions: int,
     discount: float = 1.,
@@ -152,13 +152,13 @@ def mcts(
   return root
 
 
-def bfs(node: Node) -> types.Action:
+def bfs(node: Node) -> acra_types.Action:
   """Breadth First Search search policy."""
   visit_counts = np.array([c.visit_count for c in node.children.values()])
-  return node.valid_actions()[argmax(-visit_counts)]
+  return np.int32(node.valid_actions()[argmax(-visit_counts)])
 
 
-def puct(node: Node, ucb_scaling: float = 1.) -> types.Action:
+def puct(node: Node, ucb_scaling: float = 1.) -> acra_types.Action:
   """PUCT search policy, i.e. UCT with 'prior' policy."""
   # Action values Q(s,a).
   value_scores = np.array([child.value for child in node.children.values()])
@@ -177,10 +177,10 @@ def puct(node: Node, ucb_scaling: float = 1.) -> types.Action:
 
   # Combine.
   puct_scores = value_scores + ucb_scaling * priors * visit_ratios
-  return node.valid_actions()[argmax(puct_scores)]
+  return np.int32(node.valid_actions()[argmax(puct_scores)])
 
 
-def visit_count_policy(root: Node, temperature: float = 1.) -> types.Probs:
+def visit_count_policy(root: Node, temperature: float = 1.) -> acra_types.Probs:
   """Probability weighted by visit^{1/temp} of children nodes."""
   visits = root.children_visits
   if np.sum(visits) == 0:  # uniform policy for zero visits
@@ -192,7 +192,7 @@ def visit_count_policy(root: Node, temperature: float = 1.) -> types.Probs:
   return probs
 
 
-def argmax(values: np.ndarray) -> types.Action:
+def argmax(values: np.ndarray) -> acra_types.Action:
   """Argmax with random tie-breaking."""
   check_numerics(values)
   max_value = np.max(values)

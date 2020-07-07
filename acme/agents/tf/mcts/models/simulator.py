@@ -17,7 +17,7 @@
 
 import copy
 
-from acme.agents.tf.mcts import types
+from acme.agents.tf.mcts import acra_types
 from acme.agents.tf.mcts.models import base
 
 import dataclasses
@@ -52,7 +52,7 @@ class Simulator(base.Model):
   def update(
       self,
       timestep: dm_env.TimeStep,
-      action: types.Action,
+      action: acra_types.Action,
       next_timestep: dm_env.TimeStep,
   ) -> dm_env.TimeStep:
     # Call update() once per 'real' experience to keep this env in sync.
@@ -68,7 +68,7 @@ class Simulator(base.Model):
     self._env = copy.deepcopy(self._checkpoint.environment)
     self._needs_reset = self._checkpoint.needs_reset
 
-  def step(self, action: types.Action) -> dm_env.TimeStep:
+  def step(self, action: acra_types.Action) -> dm_env.TimeStep:
     if self._needs_reset:
       raise ValueError('This model needs to be explicitly reset.')
     timestep = self._env.step(action)
