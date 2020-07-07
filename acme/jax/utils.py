@@ -33,7 +33,11 @@ def add_batch_dim(values: types.Nest) -> types.NestedArray:
   return tree_util.tree_map(lambda x: jnp.expand_dims(x, axis=0), values)
 
 
-@hk.transform
+def _transform_without_rng(f):
+  return hk.without_apply_rng(hk.transform(f, apply_rng=True))
+
+
+@_transform_without_rng
 def _flatten(x, num_batch_dims: int):
   return hk.Flatten(preserve_dims=num_batch_dims)(x)
 
@@ -68,6 +72,7 @@ def fetch_devicearray(values: types.Nest) -> types.Nest:
     if isinstance(x, jnp.DeviceArray):
       return np.array(x)
     return x
+
   return tree.map_structure(_serialize, values)
 
 
@@ -134,3 +139,12 @@ def prefetch(iterable: Iterable[T],
 
   if producer_error:
     raise producer_error[0]
+
+
+def update_periodically(steps: jnp.ndarray, target_update_period: int,
+                        params: types.NestedArray,
+                        target_params: types.NestedArray) -> types.NestedArray:
+  """Checks whether to update the params and returns the correct params."""
+  return jax.lax.cond(
+      jnp.mod(steps, target_update_period) == 0, lambda _: params,
+      lambda _: target_params, None)

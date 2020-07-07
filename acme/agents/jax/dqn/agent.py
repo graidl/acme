@@ -55,6 +55,7 @@ class DQN(agent.Agent):
       epsilon: float = 0.,
       learning_rate: float = 1e-3,
       discount: float = 0.99,
+      seed: int = 1,
   ):
     """Initialize the agent."""
 
@@ -85,14 +86,15 @@ class DQN(agent.Agent):
 
     def policy(params: hk.Params, key: jnp.ndarray,
                observation: jnp.ndarray) -> jnp.ndarray:
-      action_values = hk.transform(network).apply(params, observation)
+      action_values = hk.without_apply_rng(
+          hk.transform(network, apply_rng=True)).apply(params, observation)
       return rlax.epsilon_greedy(epsilon).sample(key, action_values)
 
     # The learner updates the parameters (and initializes them).
     learner = learning.DQNLearner(
         network=network,
         obs_spec=environment_spec.observations,
-        rng=hk.PRNGSequence(1),
+        rng=hk.PRNGSequence(seed),
         optimizer=optix.adam(learning_rate),
         discount=discount,
         importance_sampling_exponent=importance_sampling_exponent,
@@ -101,11 +103,11 @@ class DQN(agent.Agent):
         replay_client=reverb.Client(address),
     )
 
-    variable_client = variable_utils.VariableClient(learner, 'foo')
+    variable_client = variable_utils.VariableClient(learner, '')
 
     actor = actors.FeedForwardActor(
         policy=policy,
-        rng=hk.PRNGSequence(1),
+        rng=hk.PRNGSequence(seed),
         variable_client=variable_client,
         adder=adder)
 
