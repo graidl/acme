@@ -35,19 +35,19 @@ class Node:
   total_value: float = 0.
   children: Dict[acra_types.Action, 'Node'] = dataclasses.field(default_factory=dict)
 
-  def expand(self, prior: np.ndarray, action_mask: np.ndarray):
+  def expand(self, prior: np.ndarray, action_mask: np.ndarray, value: float):
     """Expands this node, adding valid child nodes."""
     assert prior.ndim == 1  # Prior should be a flat vector.
     for a, p in enumerate(prior):
       if action_mask[a]:
-        self.children[a] = Node(prior=p)
+        self.children[a] = Node(prior=p, total_value=value)
 
   @property
   def value(self) -> acra_types.Value:  # Q(s, a)
     """Returns the value from this node."""
     if self.visit_count:
       return self.total_value / self.visit_count
-    return 0.
+    return self.total_value
 
   @property
   def children_visits(self) -> np.ndarray:
@@ -60,7 +60,7 @@ class Node:
     return np.array([c.value for c in self.children.values()])
 
   def valid_actions(self):
-    """Return list of valid actions, for which subnodes esist."""
+    """Return list of valid actions, for which subnodes exist."""
     return list(self.children.keys())
 
 
@@ -92,7 +92,7 @@ def mcts(
 
   # Create a fresh tree search.
   root = Node()
-  root.expand(prior, action_mask)
+  root.expand(prior, action_mask, 0.)
 
   # Save the model state so that we can reset it for each simulation.
   model.save_checkpoint()
@@ -130,7 +130,7 @@ def mcts(
         np.ones(num_actions, dtype=bool)
 
       # We also want to expand this node for next time.
-      node.expand(prior, action_mask)
+      node.expand(prior, action_mask, value)
 
     # Load the saved model state.
     model.load_checkpoint()
@@ -146,7 +146,10 @@ def mcts(
       ret += node.reward
 
       # Update the node.
-      node.total_value += ret
+      if node.visit_count:
+        node.total_value += ret
+      else:
+        node.total_value = ret
       node.visit_count += 1
 
   return root
