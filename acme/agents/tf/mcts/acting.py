@@ -32,6 +32,14 @@ from acme.agents.tf.mcts import search
 from acme.agents.tf.mcts import acra_types
 
 
+def visit_softmax_temperature(num_episodes: int, num_moves: int):
+    return 0.0
+    # if num_moves < 30:
+    #     return 1.0
+    # else:
+    #     return 0.0  # Play according to the max.
+
+
 class MCTSActor(acme.Actor):
     """Executes a policy- and value-network guided MCTS search."""
 
@@ -48,6 +56,7 @@ class MCTSActor(acme.Actor):
             ucb_scaling: float = 1.0,
             adder: adders.Adder = None,
             variable_client: tf2_variable_utils.VariableClient = None,
+            visit_softmax_temperature_fn = visit_softmax_temperature,
     ):
 
         # Internalize components: model, network, data sink and variable source.
@@ -71,6 +80,9 @@ class MCTSActor(acme.Actor):
         self._probs = np.ones(shape=(self._num_actions,), dtype=np.float32) / self._num_actions
         # We save the target value calculated according to Moerland et al. here
         self._Vhat = np.zeros(shape=(1,), dtype=np.float32)
+        self._current_step = 0
+        self._current_episode = 0
+        self._visit_softmax_temperature_fn = visit_softmax_temperature_fn
 
     def _forward(self, observation: acra_types.Observation) -> Tuple[acra_types.Probs, acra_types.Value]:
         """Performs a forward pass of the policy-value network."""
@@ -93,6 +105,10 @@ class MCTSActor(acme.Actor):
         """Computes the agent's policy via MCTS."""
         if self._model.needs_reset:
             self._model.reset(observation)
+            self._current_episode += 1
+            self._current_step = 0
+        else:
+            self._current_step += 1
 
         # Compute a fresh MCTS plan.
         root = search.mcts(
@@ -109,8 +125,13 @@ class MCTSActor(acme.Actor):
         # The agent's policy is softmax w.r.t. the *visit counts* as in AlphaZero.
         probs = search.visit_count_policy(root)
         actions = root.valid_actions()
-        # action = np.int32(np.random.choice(actions, p=probs))
-        action = np.int32(root.valid_actions()[search.argmax(probs)])
+        T = self._visit_softmax_temperature_fn(self._current_episode, self._current_step)
+        if T == 1.:
+            action = np.int32(np.random.choice(actions, p=probs))
+        elif T == 0.:
+            action = np.int32(actions[search.argmax(probs)])
+        else:
+            raise NotImplementedError("General temperature for action selection")
 
         # Save the policy probs so that we can add them to replay in `observe()`.
         self._probs = np.zeros(self._num_actions, dtype=np.float32)
@@ -140,3 +161,5 @@ class MCTSActor(acme.Actor):
 
         if self._adder:
             self._adder.add(action, next_timestep, extras={'pi': self._probs, 'Vhat': self._Vhat})
+
+

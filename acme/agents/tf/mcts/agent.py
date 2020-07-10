@@ -28,7 +28,6 @@ from acme.agents.tf.mcts import models
 from acme.tf import utils as tf2_utils
 
 
-
 class MCTS(agent.Agent):
     """A single-process MCTS agent."""
 
