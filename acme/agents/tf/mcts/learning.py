@@ -93,6 +93,7 @@ class AZLearner(acme.Learner):
             # Forward the network on the two states in the transition.
             logits, value = self._network(o_t)
             _, target_value = self._network(o_tp1)
+            # target_value = extras['Vhat']  # Moerland et al. target value
             target_value = tf.stop_gradient(target_value)
 
             # Value loss is simply on-policy TD learning.

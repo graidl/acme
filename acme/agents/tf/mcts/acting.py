@@ -16,7 +16,6 @@
 """A MCTS actor."""
 
 from typing import Tuple
-from copy import deepcopy
 
 import acme
 import dm_env
@@ -61,8 +60,9 @@ class MCTSActor(acme.Actor):
         self._num_actions = environment_spec.actions.num_values
         self._num_simulations = num_simulations
         self._discount = discount
+        self._ucb_scaling = ucb_scaling
         if search_policy == 'puct':
-            self._search_policy = (lambda node: search.puct(node, ucb_scaling))
+            self._search_policy = search.puct
         elif search_policy == 'bfs':
             self._search_policy = search.bfs
         else:
@@ -102,13 +102,15 @@ class MCTSActor(acme.Actor):
             evaluation=self._forward,
             num_simulations=self._num_simulations,
             num_actions=self._num_actions,
+            ucb_scaling=self._ucb_scaling,
             discount=self._discount,
         )
 
         # The agent's policy is softmax w.r.t. the *visit counts* as in AlphaZero.
         probs = search.visit_count_policy(root)
         actions = root.valid_actions()
-        action = np.int32(np.random.choice(actions, p=probs))
+        # action = np.int32(np.random.choice(actions, p=probs))
+        action = np.int32(root.valid_actions()[search.argmax(probs)])
 
         # Save the policy probs so that we can add them to replay in `observe()`.
         self._probs = np.zeros(self._num_actions, dtype=np.float32)
@@ -117,6 +119,7 @@ class MCTSActor(acme.Actor):
         self._Vhat = np.zeros(shape=(1,), dtype=np.float32)
         Vhat = np.inner(probs, root.children_values)  # Target value for learning according to Moerland et al.
         self._Vhat[0] = Vhat
+
         return action
 
     def update(self):
@@ -136,4 +139,4 @@ class MCTSActor(acme.Actor):
         self._prev_timestep = next_timestep
 
         if self._adder:
-            self._adder.add(action, next_timestep, extras={'pi': self._probs})
+            self._adder.add(action, next_timestep, extras={'pi': self._probs, 'Vhat': self._Vhat})

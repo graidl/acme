@@ -15,13 +15,13 @@
 
 """A Monte Carlo Tree Search implementation."""
 
+import dataclasses
 from typing import Callable, Dict
 
-from acme.agents.tf.mcts import models
-from acme.agents.tf.mcts import acra_types
-
-import dataclasses
 import numpy as np
+
+from acme.agents.tf.mcts import acra_types
+from acme.agents.tf.mcts import models
 
 
 @dataclasses.dataclass
@@ -64,7 +64,7 @@ class Node:
     return list(self.children.keys())
 
 
-SearchPolicy = Callable[[Node], acra_types.Action]
+SearchPolicy = Callable[[Node, 'MinMaxStats', float], acra_types.Action]
 
 
 def mcts(
@@ -74,8 +74,9 @@ def mcts(
     evaluation: acra_types.EvaluationFn,
     num_simulations: int,
     num_actions: int,
+    ucb_scaling: float = 1.,
     discount: float = 1.,
-    dirichlet_alpha: float = 1,
+    dirichlet_alpha: float = 1.,
     exploration_fraction: float = 0.,
 ) -> Node:
   """Does Monte Carlo tree search (MCTS), AlphaZero style."""
@@ -87,8 +88,11 @@ def mcts(
   action_mask = observation['action_mask'] if isinstance(observation, dict) else np.ones(num_actions, dtype=bool)
 
   # Add exploration noise to the prior.
-  noise = np.random.dirichlet(alpha=[dirichlet_alpha] * action_mask.sum())
-  prior[action_mask] = prior[action_mask] * (1 - exploration_fraction) + noise * exploration_fraction
+  if exploration_fraction:
+    noise = np.random.dirichlet(alpha=[dirichlet_alpha] * action_mask.sum())
+    prior[action_mask] = prior[action_mask] * (1 - exploration_fraction) + noise * exploration_fraction
+
+  min_max_stats = MinMaxStats()
 
   # Create a fresh tree search.
   root = Node()
@@ -105,7 +109,7 @@ def mcts(
     timestep = None
     while node.children:
       # Select an action according to the search policy.
-      action = search_policy(node)
+      action = search_policy(node, min_max_stats, ucb_scaling)
 
       # Point the node at the corresponding child.
       node = node.children[action]
@@ -126,8 +130,8 @@ def mcts(
     else:
       # Otherwise, bootstrap from this node with our value function.
       prior, value = evaluation(timestep.observation)
-      action_mask = timestep.observation['action_mask'] if isinstance(timestep.observation, dict) else \
-        np.ones(num_actions, dtype=bool)
+      action_mask = timestep.observation['action_mask'] if isinstance(timestep.observation, dict) else np.ones(
+        num_actions, dtype=bool)
 
       # We also want to expand this node for next time.
       node.expand(prior, action_mask, value)
@@ -151,19 +155,22 @@ def mcts(
       else:
         node.total_value = ret
       node.visit_count += 1
+      min_max_stats.update(node.value)
 
+  # print(f"{min_max_stats=}")
   return root
 
 
-def bfs(node: Node) -> acra_types.Action:
+def bfs(node: Node, _min_max_stats: 'MinMaxStats', _ucb_scaling: float) -> acra_types.Action:
   """Breadth First Search search policy."""
   visit_counts = np.array([c.visit_count for c in node.children.values()])
   return np.int32(node.valid_actions()[argmax(-visit_counts)])
 
 
-def puct(node: Node, ucb_scaling: float = 1.) -> acra_types.Action:
+def puct(node: Node, min_max_stats: 'MinMaxStats', ucb_scaling: float) -> acra_types.Action:
   """PUCT search policy, i.e. UCT with 'prior' policy."""
   # Action values Q(s,a).
+  # value_scores = np.array([min_max_stats.normalize(child.value) for child in node.children.values()])
   value_scores = np.array([child.value for child in node.children.values()])
   check_numerics(value_scores)
 
@@ -206,3 +213,24 @@ def check_numerics(values: np.ndarray):
   """Raises a ValueError if any of the inputs are NaN or Inf."""
   if not np.isfinite(values).all():
     raise ValueError('check_numerics failed. Inputs: {}. '.format(values))
+
+
+@dataclasses.dataclass
+class MinMaxStats:
+  """
+  A class that holds the min-max values of the tree.
+  """
+
+  maximum: float = -float("inf")
+  minimum: float = float("inf")
+
+  def update(self, value):
+    self.maximum = max(self.maximum, value)
+    self.minimum = min(self.minimum, value)
+
+  def normalize(self, value):
+    # return value
+    if self.maximum > self.minimum:
+      # We normalize only when we have set the maximum and minimum values
+      return (value - self.minimum) / (self.maximum - self.minimum)
+    return value

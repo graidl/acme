@@ -75,7 +75,8 @@ class MCTS(agent.Agent):
             client=replay_client,
             environment_spec=environment_spec,
             extra_spec={
-                'pi': specs.Array(shape=(action_spec.num_values,), dtype=np.float32)
+                'pi': specs.Array(shape=(action_spec.num_values,), dtype=np.float32),
+                'Vhat': specs.Array(shape=(1,), dtype=np.float32),
             },
             transition_adder=True)
 
