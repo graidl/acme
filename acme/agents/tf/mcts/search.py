@@ -16,7 +16,7 @@
 """A Monte Carlo Tree Search implementation."""
 
 import dataclasses
-from typing import Callable, Dict
+from typing import Callable, Dict, Tuple
 
 import numpy as np
 
@@ -40,7 +40,7 @@ class Node:
     assert prior.ndim == 1  # Prior should be a flat vector.
     for a, p in enumerate(prior):
       if action_mask[a]:
-        self.children[a] = Node(prior=p, total_value=value)
+        self.children[np.int32(a)] = Node(prior=p, total_value=value)
 
   @property
   def value(self) -> acra_types.Value:  # Q(s, a)
@@ -164,10 +164,10 @@ def mcts(
 def bfs(node: Node, _min_max_stats: 'MinMaxStats', _ucb_scaling: float) -> acra_types.Action:
   """Breadth First Search search policy."""
   visit_counts = np.array([c.visit_count for c in node.children.values()])
-  return np.int32(node.valid_actions()[argmax(-visit_counts)])
+  return node.valid_actions()[argmax(-visit_counts)]
 
 
-def puct(node: Node, min_max_stats: 'MinMaxStats', ucb_scaling: float) -> acra_types.Action:
+def puct(node: Node, _min_max_stats: 'MinMaxStats', ucb_scaling: float) -> acra_types.Action:
   """PUCT search policy, i.e. UCT with 'prior' policy."""
   # Action values Q(s,a).
   # value_scores = np.array([min_max_stats.normalize(child.value) for child in node.children.values()])
@@ -187,22 +187,30 @@ def puct(node: Node, min_max_stats: 'MinMaxStats', ucb_scaling: float) -> acra_t
 
   # Combine.
   puct_scores = value_scores + ucb_scaling * priors * visit_ratios
-  return np.int32(node.valid_actions()[argmax(puct_scores)])
+  return node.valid_actions()[argmax(puct_scores)]
 
 
-def visit_count_policy(root: Node, temperature: float = 1.) -> acra_types.Probs:
+def visit_count_policy(root: Node, temperature: float) -> Tuple[acra_types.Probs, np.int32]:
   """Probability weighted by visit^{1/temp} of children nodes."""
+  actions = root.valid_actions()
   visits = root.children_visits
   if np.sum(visits) == 0:  # uniform policy for zero visits
     visits += 1
-  rescaled_visits = visits**(1 / temperature)
-  probs = rescaled_visits / np.sum(rescaled_visits)
-  check_numerics(probs)
+  rescaled_visits = visits
+  if temperature == 0:
+    # rescaled_visits = visits == max(visits)
+    rescaled_visits = rescaled_visits / np.sum(rescaled_visits)
+    action = actions[argmax(rescaled_visits)]
+  else:
+    if temperature != 1:
+      rescaled_visits = visits ** (1 / temperature)
+    rescaled_visits = rescaled_visits / np.sum(rescaled_visits)
+    action = np.random.choice(actions, p=rescaled_visits)
+  check_numerics(rescaled_visits)
+  return rescaled_visits, action
 
-  return probs
 
-
-def argmax(values: np.ndarray) -> acra_types.Action:
+def argmax(values: np.ndarray) -> np.int32:
   """Argmax with random tie-breaking."""
   check_numerics(values)
   max_value = np.max(values)

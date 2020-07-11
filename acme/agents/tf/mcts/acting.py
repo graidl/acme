@@ -15,7 +15,7 @@
 
 """A MCTS actor."""
 
-from typing import Tuple
+from typing import Tuple, Callable
 
 import acme
 import dm_env
@@ -32,7 +32,7 @@ from acme.agents.tf.mcts import search
 from acme.agents.tf.mcts import acra_types
 
 
-def visit_softmax_temperature(num_episodes: int, num_moves: int):
+def visit_softmax_temperature(_num_episodes: int, _num_moves: int):
     return 0.0
     # if num_moves < 30:
     #     return 1.0
@@ -56,7 +56,7 @@ class MCTSActor(acme.Actor):
             ucb_scaling: float = 1.0,
             adder: adders.Adder = None,
             variable_client: tf2_variable_utils.VariableClient = None,
-            visit_softmax_temperature_fn = visit_softmax_temperature,
+            visit_softmax_temperature_fn: Callable = visit_softmax_temperature,
     ):
 
         # Internalize components: model, network, data sink and variable source.
@@ -123,19 +123,12 @@ class MCTSActor(acme.Actor):
         )
 
         # The agent's policy is softmax w.r.t. the *visit counts* as in AlphaZero.
-        probs = search.visit_count_policy(root)
-        actions = root.valid_actions()
-        T = self._visit_softmax_temperature_fn(self._current_episode, self._current_step)
-        if T == 1.:
-            action = np.int32(np.random.choice(actions, p=probs))
-        elif T == 0.:
-            action = np.int32(actions[search.argmax(probs)])
-        else:
-            raise NotImplementedError("General temperature for action selection")
+        temperature = self._visit_softmax_temperature_fn(self._current_episode, self._current_step)
+        probs, action = search.visit_count_policy(root, temperature)
 
         # Save the policy probs so that we can add them to replay in `observe()`.
         self._probs = np.zeros(self._num_actions, dtype=np.float32)
-        self._probs[actions] = probs.astype(np.float32)
+        self._probs[root.valid_actions()] = probs.astype(np.float32)
 
         self._Vhat = np.zeros(shape=(1,), dtype=np.float32)
         Vhat = np.inner(probs, root.children_values)  # Target value for learning according to Moerland et al.
@@ -161,5 +154,3 @@ class MCTSActor(acme.Actor):
 
         if self._adder:
             self._adder.add(action, next_timestep, extras={'pi': self._probs, 'Vhat': self._Vhat})
-
-
