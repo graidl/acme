@@ -50,13 +50,23 @@ class MCTS(agent.Agent):
             checkpoint: bool = False,
             snapshot: bool = False,
     ):
+        """Initialize Monte Carlo Tree Search agent.
+
+        :param n_step: 1 for one-step temporal difference learning (TD(1)), otherwise a large enough value to
+            exceed episode length for learning based on final episode reward
+        """
+        extra_spec = {
+            'pi': specs.Array(shape=(environment_spec.actions.num_values,), dtype=np.float32),
+            'Vhat': specs.Array(shape=(1,), dtype=np.float32),
+        }
         # Create a replay server for storing transitions.
         replay_table = reverb.Table(
             name=adders.DEFAULT_PRIORITY_TABLE,
             sampler=reverb.selectors.Uniform(),
             remover=reverb.selectors.Fifo(),
             max_size=replay_capacity,
-            rate_limiter=reverb.rate_limiters.MinSize(1)
+            rate_limiter=reverb.rate_limiters.MinSize(1),
+            signature=adders.NStepTransitionAdder.signature(environment_spec, extra_spec)
         )
         self._server = reverb.Server([replay_table], port=None)
 
@@ -69,14 +79,10 @@ class MCTS(agent.Agent):
 
         # The dataset provides an interface to sample from replay.
         replay_client = reverb.TFClient(address)
-        action_spec: specs.DiscreteArray = environment_spec.actions
         dataset = datasets.make_reverb_dataset(
             client=replay_client,
             environment_spec=environment_spec,
-            extra_spec={
-                'pi': specs.Array(shape=(action_spec.num_values,), dtype=np.float32),
-                'Vhat': specs.Array(shape=(1,), dtype=np.float32),
-            },
+            extra_spec=extra_spec,
             transition_adder=True)
 
         dataset = dataset.batch(batch_size, drop_remainder=True)
@@ -106,6 +112,7 @@ class MCTS(agent.Agent):
             directory=directory,
             checkpoint=checkpoint,
             snapshot=snapshot,
+            td_learning=n_step == 1,
         )
 
         # The parent class combines these together into one 'agent'.

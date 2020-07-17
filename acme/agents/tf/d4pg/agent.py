@@ -52,6 +52,8 @@ class D4PG(agent.Agent):
                batch_size: int = 256,
                prefetch_size: int = 4,
                target_update_period: int = 100,
+               policy_optimizer: snt.Optimizer = None,
+               critic_optimizer: snt.Optimizer = None,
                min_replay_size: int = 1000,
                max_replay_size: int = 1000000,
                samples_per_insert: float = 32.0,
@@ -75,6 +77,8 @@ class D4PG(agent.Agent):
       prefetch_size: size to prefetch from replay.
       target_update_period: number of learner steps to perform before updating
         the target networks.
+      policy_optimizer: optimizer for the policy network updates.
+      critic_optimizer: optimizer for the critic network updates.
       min_replay_size: minimum replay size before updating.
       max_replay_size: maximum replay size.
       samples_per_insert: number of samples to take from replay for every insert
@@ -94,7 +98,8 @@ class D4PG(agent.Agent):
         sampler=reverb.selectors.Uniform(),
         remover=reverb.selectors.Fifo(),
         max_size=max_replay_size,
-        rate_limiter=reverb.rate_limiters.MinSize(1))
+        rate_limiter=reverb.rate_limiters.MinSize(1),
+        signature=adders.NStepTransitionAdder.signature(environment_spec))
     self._server = reverb.Server([replay_table], port=None)
 
     # The adder is used to insert observations into replay.
@@ -136,9 +141,9 @@ class D4PG(agent.Agent):
     ])
 
     # Create variables.
-    tf2_utils.create_variables(policy_network, [emb_spec])
+    tf2_utils.create_variables(policy_network, [emb_spec])  # pytype: disable=wrong-arg-types
     tf2_utils.create_variables(critic_network, [emb_spec, act_spec])
-    tf2_utils.create_variables(target_policy_network, [emb_spec])
+    tf2_utils.create_variables(target_policy_network, [emb_spec])  # pytype: disable=wrong-arg-types
     tf2_utils.create_variables(target_critic_network, [emb_spec, act_spec])
     tf2_utils.create_variables(target_observation_network, [obs_spec])
 
@@ -146,8 +151,10 @@ class D4PG(agent.Agent):
     actor = actors.FeedForwardActor(behavior_network, adder=adder)
 
     # Create optimizers.
-    policy_optimizer = snt.optimizers.Adam(learning_rate=1e-4)
-    critic_optimizer = snt.optimizers.Adam(learning_rate=1e-4)
+    policy_optimizer = policy_optimizer or snt.optimizers.Adam(
+        learning_rate=1e-4)
+    critic_optimizer = critic_optimizer or snt.optimizers.Adam(
+        learning_rate=1e-4)
 
     # The learner updates the parameters (and initializes them).
     learner = learning.D4PGLearner(

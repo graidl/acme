@@ -40,7 +40,8 @@ class AZLearner(acme.Learner):
             counter: counting.Counter = None,
             checkpoint: bool = False,
             snapshot: bool = False,
-            directory: str = '~/acme/'
+            directory: str = '~/acme/',
+            td_learning: bool = True,
     ):
         # Logger and counter for tracking statistics / writing out to terminal.
         self._counter = counting.Counter(counter, 'learner')
@@ -53,6 +54,7 @@ class AZLearner(acme.Learner):
         self._network = network
         self._variables = network.trainable_variables
         self._discount = np.float32(discount)
+        self._td_learning = td_learning
         # Create a checkpointer and snapshotter objects.
         self._checkpointer = None
         self._snapshotter = None
@@ -92,12 +94,15 @@ class AZLearner(acme.Learner):
         with tf.GradientTape() as tape:
             # Forward the network on the two states in the transition.
             logits, value = self._network(o_t)
-            _, target_value = self._network(o_tp1)
-            # target_value = extras['Vhat']  # Moerland et al. target value
-            target_value = tf.stop_gradient(target_value)
-
-            # Value loss is simply on-policy TD learning.
-            value_loss = tf.square(r_t + self._discount * d_t * target_value - value)
+            if self._td_learning:
+                _, target_value = self._network(o_tp1)
+                target_value = tf.stop_gradient(target_value)
+                # target_value = extras['Vhat']  # Moerland et al. target value
+                # Value loss is simply on-policy TD learning.
+                value_loss = tf.square(r_t + self._discount * d_t * target_value - value)
+            else:
+                # learn from total reward up to episode end
+                value_loss = tf.square(r_t - value)
 
             # Policy loss distills MCTS policy into the policy network.
             policy_loss = tf.nn.softmax_cross_entropy_with_logits(

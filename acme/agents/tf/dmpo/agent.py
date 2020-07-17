@@ -107,7 +107,8 @@ class DistributionalMPO(agent.Agent):
         sampler=reverb.selectors.Uniform(),
         remover=reverb.selectors.Fifo(),
         max_size=max_replay_size,
-        rate_limiter=reverb.rate_limiters.MinSize(min_size_to_sample=1))
+        rate_limiter=reverb.rate_limiters.MinSize(min_size_to_sample=1),
+        signature=adders.NStepTransitionAdder.signature(environment_spec))
     self._server = reverb.Server([replay_table], port=None)
 
     # The adder is used to insert observations into replay.
@@ -147,9 +148,9 @@ class DistributionalMPO(agent.Agent):
     ])
 
     # Create variables.
-    tf2_utils.create_variables(policy_network, [emb_spec])
+    tf2_utils.create_variables(policy_network, [emb_spec])  # pytype: disable=wrong-arg-types
     tf2_utils.create_variables(critic_network, [emb_spec, act_spec])
-    tf2_utils.create_variables(target_policy_network, [emb_spec])
+    tf2_utils.create_variables(target_policy_network, [emb_spec])  # pytype: disable=wrong-arg-types
     tf2_utils.create_variables(target_critic_network, [emb_spec, act_spec])
     tf2_utils.create_variables(target_observation_network, [obs_spec])
 

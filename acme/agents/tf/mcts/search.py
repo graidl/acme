@@ -191,21 +191,24 @@ def puct(node: Node, _min_max_stats: 'MinMaxStats', ucb_scaling: float) -> acra_
 
 
 def visit_count_policy(root: Node, temperature: float) -> Tuple[acra_types.Probs, np.int32]:
-  """Probability weighted by visit^{1/temp} of children nodes."""
+  """Select action according to weighted visit counts of children nodes.
+
+  :return: Probability distribution and selected action
+  """
   actions = root.valid_actions()
   visits = root.children_visits
   if np.sum(visits) == 0:  # uniform policy for zero visits
     visits += 1
   rescaled_visits = visits
+  rescaled_visits = rescaled_visits / np.sum(rescaled_visits)
   if temperature == 0:
     # rescaled_visits = visits == max(visits)
-    rescaled_visits = rescaled_visits / np.sum(rescaled_visits)
     action = actions[argmax(rescaled_visits)]
   else:
     if temperature != 1:
-      rescaled_visits = visits ** (1 / temperature)
-    rescaled_visits = rescaled_visits / np.sum(rescaled_visits)
-    action = np.random.choice(actions, p=rescaled_visits)
+      probs = visits ** (1 / temperature)
+    probs = probs / np.sum(probs)
+    action = np.random.choice(actions, p=probs)
   check_numerics(rescaled_visits)
   return rescaled_visits, action
 
