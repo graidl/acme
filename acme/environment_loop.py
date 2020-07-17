@@ -19,6 +19,7 @@ import itertools
 import time
 from typing import Optional
 import numpy as np
+from multiprocessing import Pool
 
 from acme import core
 # Internal imports.
@@ -62,6 +63,64 @@ class EnvironmentLoop(core.Worker):
     self._counter = counter or counting.Counter()
     self._logger = logger or loggers.make_default_logger(label)
 
+  @staticmethod
+  def perform_episode_parallel(i):
+    global actor, environment
+    print(f"Process {i} start")
+
+    # Reset any counts and start the environment.
+    episode_steps = 0
+    episode_return = 0
+    timestep = environment.reset()
+
+    # Make the first observation.
+    actor.observe_first(timestep)
+
+    # Run an episode.
+    while not timestep.last():
+      print("in while")
+      # Generate an action from the agent's policy and step the environment.
+      action = actor.select_action(timestep.observation)
+      timestep = environment.step(action)
+      # Have the agent observe the timestep and let the actor update itself.
+      actor.observe(action, next_timestep=timestep)
+      actor.update()
+
+      # Book-keeping.
+      episode_steps += 1
+      episode_return += timestep.reward
+
+    print(f"Process {i} done")
+    return episode_steps, episode_return
+
+
+  def perform_episode(self):
+    # Reset any counts and start the environment.
+    episode_steps = 0
+    episode_return = 0
+    timestep = self._environment.reset()
+
+    # Make the first observation.
+    self._actor.observe_first(timestep)
+
+    # Run an episode.
+    while not timestep.last():
+      print("in while")
+      # Generate an action from the agent's policy and step the environment.
+      action = self._actor.select_action(timestep.observation)
+      timestep = self._environment.step(action)
+
+      # Have the agent observe the timestep and let the actor update itself.
+      self._actor.observe(action, next_timestep=timestep)
+      self._actor.update()
+
+      # Book-keeping.
+      episode_steps += 1
+      episode_return += timestep.reward
+
+    return episode_steps, episode_return
+
+
   def run(self, num_episodes: Optional[int] = None):
     """Perform the run loop.
 
@@ -85,28 +144,16 @@ class EnvironmentLoop(core.Worker):
     episode_max_length = -np.inf
 
     for _ in iterator:
-      # Reset any counts and start the environment.
       start_time = time.time()
-      episode_steps = 0
-      episode_return = 0
-      timestep = self._environment.reset()
+      processes = 3
+      global actor, environment
+      actor = self._actor
+      environment = self._environment
+      with Pool(processes) as p:
+        results = p.map(EnvironmentLoop.perform_episode_parallel,
+                        [i for i in range(processes)])
 
-      # Make the first observation.
-      self._actor.observe_first(timestep)
-
-      # Run an episode.
-      while not timestep.last():
-        # Generate an action from the agent's policy and step the environment.
-        action = self._actor.select_action(timestep.observation)
-        timestep = self._environment.step(action)
-
-        # Have the agent observe the timestep and let the actor update itself.
-        self._actor.observe(action, next_timestep=timestep)
-        self._actor.update()
-
-        # Book-keeping.
-        episode_steps += 1
-        episode_return += timestep.reward
+      episode_steps, episode_return = self.perform_episode()
 
       # Record counts.
       counts = self._counter.increment(episodes=1, steps=episode_steps)

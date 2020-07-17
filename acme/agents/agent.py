@@ -78,8 +78,7 @@ class Agent(core.Actor, core.VariableSource):
   def update(self):
     # Only allow updates after some minimum number of observations have been and
     # then at some period given by observations_per_update.
-    if (self._num_observations >= 0 and
-        self._num_observations % self._observations_per_update == 0):
+    if (self._num_observations >= 0 and self._num_observations % self._observations_per_update == 0):
       self._num_observations = 0
 
       # Run a number of learner steps (usually gradient steps).
