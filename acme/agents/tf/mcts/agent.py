@@ -122,3 +122,8 @@ class MCTS(agent.Agent):
             min_observations=min_observations_for_learner,
             observations_per_step=observations_per_step,
         )
+
+    def save_checkpoint_and_snapshopt(self):
+        """If checkpointer/snapshotter used, do forced save."""
+        self._learner.save_checkpoint_and_snapshot()
+

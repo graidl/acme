@@ -128,3 +128,10 @@ class AZLearner(acme.Learner):
     def get_variables(self, names: List[str]) -> List[List[np.ndarray]]:
         """Exposes the variables for actors to update from."""
         return tf2_utils.to_numpy(self._variables)
+
+    def save_checkpoint_and_snapshot(self):
+        """If checkpointer/snapshotter used, do forced save."""
+        if self._checkpointer is not None:
+            self._checkpointer.save(force=True)
+        if self._snapshotter is not None:
+            self._snapshotter.save(force=True)
