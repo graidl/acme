@@ -70,6 +70,7 @@ class ReverbAdder(base.Adder):
       delta_encoded: bool = False,
       chunk_length: Optional[int] = None,
       priority_fns: Optional[PriorityFnMapping] = None,
+      write_only_at_episode_end: bool = False
   ):
     """Initialize a ReverbAdder instance.
 
@@ -85,6 +86,8 @@ class ReverbAdder(base.Adder):
       priority_fns: A mapping from table names to priority functions; if
         omitted, all transitions/steps/sequences are given uniform priorities
         (1.0) and placed in DEFAULT_PRIORITY_TABLE.
+      write_only_at_episode_end: Perform writing to the Reverb backend only at the
+        episode end.
     """
     if priority_fns:
       priority_fns = dict(priority_fns)
@@ -96,6 +99,7 @@ class ReverbAdder(base.Adder):
     self._max_sequence_length = max_sequence_length
     self._delta_encoded = delta_encoded
     self._chunk_length = chunk_length
+    self._write_only_at_episode_end = write_only_at_episode_end
 
     # This is exposed as the _writer property in such a way that it will create
     # a new writer automatically whenever the internal __writer is None. Users
@@ -168,7 +172,8 @@ class ReverbAdder(base.Adder):
     # Record the next observation and write.
     self._next_observation = next_timestep.observation
     self._start_of_episode = False
-    self._write()
+    if not self._write_only_at_episode_end or next_timestep.last():
+        self._write()
 
     # Write the last "dangling" observation.
     if next_timestep.last():

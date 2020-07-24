@@ -170,7 +170,7 @@ def bfs(node: Node, _min_max_stats: 'MinMaxStats', _ucb_scaling: float) -> acra_
 def puct(node: Node, _min_max_stats: 'MinMaxStats', ucb_scaling: float) -> acra_types.Action:
   """PUCT search policy, i.e. UCT with 'prior' policy."""
   # Action values Q(s,a).
-  # value_scores = np.array([min_max_stats.normalize(child.value) for child in node.children.values()])
+  # value_scores = np.array([_min_max_stats.normalize(child.value) for child in node.children.values()])
   value_scores = np.array([child.value for child in node.children.values()])
   check_numerics(value_scores)
 

@@ -72,10 +72,13 @@ class MCTS(agent.Agent):
 
         # The adder is used to insert observations into replay.
         address = f'localhost:{self._server.port}'
+        # adder for temporal difference learning
         adder = adders.NStepTransitionAdder(
             client=reverb.Client(address),
             n_step=n_step,
-            discount=discount)
+            discount=discount,
+            write_only_at_episode_end=(n_step > 1)
+        )
 
         # The dataset provides an interface to sample from replay.
         replay_client = reverb.TFClient(address)
@@ -123,7 +126,7 @@ class MCTS(agent.Agent):
             observations_per_step=observations_per_step,
         )
 
-    def save_checkpoint_and_snapshopt(self):
+    def save_checkpoint_and_snapshot(self):
         """If checkpointer/snapshotter used, do forced save."""
         self._learner.save_checkpoint_and_snapshot()
 

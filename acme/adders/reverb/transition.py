@@ -74,11 +74,12 @@ class NStepTransitionAdder(base.ReverbAdder):
     e_t [Optional]: A nested structure of any 'extras' the user wishes to add.
 
   Notes:
-    - At the beginning and end of episodes, shorter transitions are added.
+    - If write_only_at_episode_end is False:
+      At the beginning and end of episodes, shorter transitions are added.
       That is, at the beginning of the episode, it will add:
             (s_0 -> s_1), (s_0 -> s_2), ..., (s_0 -> s_n), (s_1 -> s_{n+1})
 
-      And at the end of the episode, it will add:
+      At the end of the episode, it will add in any case:
             (s_{T-n+1} -> s_T), (s_{T-n+2} -> s_T), ... (s_{T-1} -> s_T).
     - We add the *first* `extra` of each transition, not the *last*, i.e.
         if extras are provided, we get e_t, not e_{t+n}.
@@ -90,6 +91,7 @@ class NStepTransitionAdder(base.ReverbAdder):
       n_step: int,
       discount: float,
       priority_fns: Optional[base.PriorityFnMapping] = None,
+      write_only_at_episode_end: bool = False
   ):
     """Creates an N-step transition adder.
 
@@ -114,14 +116,16 @@ class NStepTransitionAdder(base.ReverbAdder):
         client=client,
         buffer_size=n_step,
         max_sequence_length=1,
-        priority_fns=priority_fns)
+        priority_fns=priority_fns,
+        write_only_at_episode_end=write_only_at_episode_end
+    )
 
   def _write(self):
     # NOTE: we do not check that the buffer is of length N here. This means
     # that at the beginning of an episode we will add the initial N-1
-    # transitions (of size 1, 2, ...) and at the end of an episode (when
-    # called from write_last) we will write the final transitions of size (N,
-    # N-1, ...). See the Note in the docstring.
+    # transitions (of size 1, 2, ...) if write_only_at_episode_end is not set,
+    # and at the end of an episode (when called from write_last) we will write
+    # the final transitions of size (N, N-1, ...). See the Note in the docstring.
 
     # Form the n-step transition given the steps.
     observation = self._buffer[0].observation

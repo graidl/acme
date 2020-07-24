@@ -1,0 +1,11 @@
+tensorflow
+trfl
+numpy
+jax
+dataclasses
+bsuite
+scipy
+rlax
+gym
+Pillow
+setuptools
