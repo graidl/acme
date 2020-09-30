@@ -207,6 +207,8 @@ def visit_count_policy(root: Node, temperature: float) -> Tuple[acra_types.Probs
   else:
     if temperature != 1:
       probs = visits ** (1 / temperature)
+    else:
+      probs = visits
     probs = probs / np.sum(probs)
     action = np.random.choice(actions, p=probs)
   check_numerics(rescaled_visits)
